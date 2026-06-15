@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -16,10 +16,10 @@ type server struct {
 	httpServer *http.Server
 	store      store.Store
 	cancel     context.CancelFunc
-	logger     *log.Logger
+	logger     *slog.Logger
 }
 
-func newServer(store store.Store, port int, cancel context.CancelFunc, logger *log.Logger) *server {
+func newServer(store store.Store, port int, cancel context.CancelFunc, logger *slog.Logger) *server {
 	mux := http.NewServeMux()
 
 	srv := &http.Server{
@@ -54,18 +54,13 @@ func (s *server) start() error {
 		return err
 	}
 
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
-	if !ok {
-		s.logger.Printf("Is not ok !")
-	}
-	port := tcpAddr.Port
-	s.logger.Printf("Linko is running on http://localhost:%d", port)
+	s.logger.Debug(fmt.Sprintf("Linko is running on http://localhost:%d", ln.Addr().(*net.TCPAddr).Port))
 
 	return nil
 }
 
 func (s *server) shutdown(ctx context.Context) error {
-	s.logger.Println("Linko is shutting down")
+	s.logger.Debug("Linko is shutting down")
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -80,7 +75,7 @@ func (s *server) handlerShutdown(w http.ResponseWriter, r *http.Request) {
 
 // on créer une fonction qui prend une logger en entrée et
 // renvoie une fonction anonyme qui prends un handler en entrée et revoie un handler en sorti
-func requestLogger(logger *log.Logger) func(http.Handler) http.Handler {
+func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	// on retourne un fonction anonyme
 	return func(next http.Handler) http.Handler {
 		// qui retourne une fonction HandlerFunc qui execute le handler suivant avec les logs
@@ -88,7 +83,7 @@ func requestLogger(logger *log.Logger) func(http.Handler) http.Handler {
 			// execution du handle suivant
 			next.ServeHTTP(w, r)
 			// logger
-			logger.Printf("Served request: %s %s", r.Method, r.URL.Path)
+			logger.Info(fmt.Sprintf("Served request: %s %s", r.Method, r.URL.Path))
 		})
 	}
 }
