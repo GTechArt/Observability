@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,20 +16,22 @@ type server struct {
 	httpServer *http.Server
 	store      store.Store
 	cancel     context.CancelFunc
+	logger     *log.Logger
 }
 
-func newServer(store store.Store, port int, cancel context.CancelFunc) *server {
+func newServer(store store.Store, port int, cancel context.CancelFunc, logger *log.Logger) *server {
 	mux := http.NewServeMux()
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mux,
+		Handler: requestLogger(logger)(mux),
 	}
 
 	s := &server{
 		httpServer: srv,
 		store:      store,
 		cancel:     cancel,
+		logger:     logger,
 	}
 
 	mux.HandleFunc("GET /", s.handlerIndex)
@@ -50,10 +53,19 @@ func (s *server) start() error {
 	if err := s.httpServer.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		s.logger.Printf("Is not ok !")
+	}
+	port := tcpAddr.Port
+	s.logger.Printf("Linko is running on http://localhost:%d", port)
+
 	return nil
 }
 
 func (s *server) shutdown(ctx context.Context) error {
+	s.logger.Println("Linko is shutting down")
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -64,4 +76,19 @@ func (s *server) handlerShutdown(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	go s.cancel()
+}
+
+// on créer une fonction qui prend une logger en entrée et
+// renvoie une fonction anonyme qui prends un handler en entrée et revoie un handler en sorti
+func requestLogger(logger *log.Logger) func(http.Handler) http.Handler {
+	// on retourne un fonction anonyme
+	return func(next http.Handler) http.Handler {
+		// qui retourne une fonction HandlerFunc qui execute le handler suivant avec les logs
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// execution du handle suivant
+			next.ServeHTTP(w, r)
+			// logger
+			logger.Printf("Served request: %s %s", r.Method, r.URL.Path)
+		})
+	}
 }
