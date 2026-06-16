@@ -43,7 +43,9 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 
 	st, err := store.New(dataDir, logger)
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to create store: %v", err))
+		logger.Error("failed to create store",
+			slog.Any("error", err),
+		)
 		return 1
 	}
 	s := newServer(*st, httpPort, cancel, logger)
@@ -57,11 +59,15 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	defer cancel()
 
 	if err := s.shutdown(shutdownCtx); err != nil {
-		s.logger.Error(fmt.Sprintf("failed to shutdown server: %v", err))
+		s.logger.Error("failed to shutdown server",
+			slog.Any("error", err),
+		)
 		return 1
 	}
 	if serverErr != nil {
-		s.logger.Error(fmt.Sprintf("server error: %v", serverErr))
+		s.logger.Error("server error",
+			slog.Any("error", err),
+		)
 		return 1
 	}
 	return 0
@@ -96,7 +102,7 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 			}
 			return nil
 		}
-		handlers = append(handlers, slog.NewTextHandler(bufferFile, &slog.HandlerOptions{
+		handlers = append(handlers, slog.NewJSONHandler(bufferFile, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		}))
 		closers = append(closers, close)

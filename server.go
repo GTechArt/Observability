@@ -83,7 +83,11 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			// execution du handle suivant
 			next.ServeHTTP(w, r)
 			// logger
-			logger.Info(fmt.Sprintf("Served request: %s %s", r.Method, r.URL.Path))
+			logger.Info("Served request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("client_ip", r.RemoteAddr),
+			)
 		})
 	}
 }
