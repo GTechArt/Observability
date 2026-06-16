@@ -79,7 +79,8 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 
 	handlers := []slog.Handler{}
 	handlers = append(handlers, slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level:       slog.LevelDebug,
+		ReplaceAttr: replaceAttr,
 	}))
 
 	closers := []closeFunc{}
@@ -103,7 +104,8 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 			return nil
 		}
 		handlers = append(handlers, slog.NewJSONHandler(bufferFile, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
+			Level:       slog.LevelInfo,
+			ReplaceAttr: replaceAttr,
 		}))
 		closers = append(closers, close)
 	}
@@ -119,4 +121,15 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 	}
 
 	return slog.New(slog.NewMultiHandler(handlers...)), closer, nil
+}
+
+func replaceAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == "error" {
+		err, ok := a.Value.Any().(error)
+		if !ok {
+			return a
+		}
+		return slog.String("error", fmt.Sprintf("%+v", err))
+	}
+	return a
 }
