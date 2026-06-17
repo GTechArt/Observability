@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"internal/linkoerr"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"boot.dev/linko/internal/store"
+	pkgerr "github.com/pkg/errors"
 )
 
 func main() {
@@ -73,6 +75,10 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	return 0
 }
 
+type stackTracer interface {
+	error
+	StackTrace() pkgerr.StackTrace
+}
 type closeFunc func() error
 
 func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
@@ -129,6 +135,10 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 		if !ok {
 			return a
 		}
+		if stackErr, ok := errors.AsType[stackTracer](err); ok {
+			return slog.GroupAttrs(linkoerr.Attr(stackErr))
+		}
+
 		return slog.String("error", fmt.Sprintf("%+v", err))
 	}
 	return a
