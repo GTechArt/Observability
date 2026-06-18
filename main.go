@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"boot.dev/linko/internal/linkoerr"
 	"boot.dev/linko/internal/store"
 	pkgerr "github.com/pkg/errors"
 )
@@ -128,22 +129,36 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 	return slog.New(slog.NewMultiHandler(handlers...)), closer, nil
 }
 
+type multiError interface {
+	error
+	Unwrap() []error
+}
+
 func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 	if a.Key == "error" {
 		err, ok := a.Value.Any().(error)
 		if !ok {
 			return a
 		}
+		var attrs []slog.Attr
+
+		fmt.Printf( /*os.Stderr,*/ "DEBUG: err.Error() = %v\n", err.Error())
+		if multiErr, ok := errors.AsType[multiError](err); ok {
+			for i, errUnwraped := range multiErr.Unwrap() {
+				attrs = append(attrs, slog.Any(fmt.Sprintf("error_%d", i+1), linkoerr.Attrs(errUnwraped)))
+			}
+		} else {
+			attrs = append(attrs, slog.Any("error", linkoerr.Attrs(err)))
+		}
 
 		if stackErr, ok := errors.AsType[stackTracer](err); ok {
-			return slog.GroupAttrs("error", slog.Attr{
-				Key:   "message",
-				Value: slog.StringValue(stackErr.Error()),
-			}, slog.Attr{
+			attrs = append(attrs, slog.Attr{
 				Key:   "stack_trace",
 				Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
 			})
+
 		}
+		return slog.GroupAttrs("errors", attrs...)
 	}
 	return a
 }
