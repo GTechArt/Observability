@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"boot.dev/linko/internal/store"
 )
@@ -81,13 +83,68 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 		// qui retourne une fonction HandlerFunc qui execute le handler suivant avec les logs
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// execution du handle suivant
-			next.ServeHTTP(w, r)
+			start := time.Now()
+			spyReader := &spyReadCloser{ReadCloser: r.Body}
+			r.Body = spyReader
+			spyWriter := &spyResponseWriter{ResponseWriter: w}
+			logContext := &LogContext{}
+			r = r.WithContext(context.WithValue(r.Context(), logContextKey, logContext))
+			next.ServeHTTP(spyWriter, r)
 			// logger
-			logger.Info("Served request",
+
+			attr := []any{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.String("client_ip", r.RemoteAddr),
-			)
+				slog.Duration("duration", time.Since(start)),
+				slog.Int("request_body_bytes", spyReader.bytesRead),
+				slog.Int("response_status", spyWriter.statusCode),
+				slog.Int("response_body_bytes", spyWriter.bytesWritten),
+			}
+			if logContext.Username != "" {
+				attr = append(attr,
+					slog.String("user", logContext.Username),
+				)
+			}
+			logger.Info("Served request", attr...)
 		})
 	}
+}
+
+type spyReadCloser struct {
+	io.ReadCloser
+	bytesRead int
+}
+
+func (r *spyReadCloser) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.bytesRead += n
+	return n, err
+}
+
+type spyResponseWriter struct {
+	http.ResponseWriter
+	bytesWritten int
+	statusCode   int
+}
+
+func (w *spyResponseWriter) Write(p []byte) (int, error) {
+	fmt.Printf("DEBUG: StatueCode = %d", w.statusCode)
+	if w.statusCode == 0 {
+		w.statusCode = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(p)
+	w.bytesWritten += n
+	return n, err
+}
+
+func (w *spyResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+const logContextKey contextKey = "log_context"
+
+type LogContext struct {
+	Username string
 }

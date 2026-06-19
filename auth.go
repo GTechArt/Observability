@@ -22,6 +22,7 @@ var allowedUsers = map[string]string{
 }
 
 func (s *server) authMiddleware(next http.Handler) http.Handler {
+	usernameMemory := ""
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
 		if !ok {
@@ -45,6 +46,13 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 		if !ok {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
+		}
+		logContext, ok := r.Context().Value(logContextKey).(*LogContext)
+		if ok {
+			usernameMemory = username
+			logContext.Username = username
+		} else if username != "" {
+			logContext.Username = usernameMemory
 		}
 		r = r.WithContext(context.WithValue(r.Context(), UserContextKey, username))
 		next.ServeHTTP(w, r)

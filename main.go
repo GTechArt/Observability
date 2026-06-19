@@ -152,8 +152,6 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 			return a
 		}
 		var attrs []slog.Attr
-
-		fmt.Printf( /*os.Stderr,*/ "DEBUG: err.Error() = %v\n", err.Error())
 		if multiErr, ok := errors.AsType[multiError](err); ok {
 			for i, errUnwraped := range multiErr.Unwrap() {
 				attrs = append(attrs, slog.Any(fmt.Sprintf("error_%d", i+1), linkoerr.Attrs(errUnwraped)))
