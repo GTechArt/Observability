@@ -106,6 +106,11 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.String("user", logContext.Username),
 				)
 			}
+			if logContext.Error != nil {
+				attr = append(attr,
+					slog.Any("error", logContext.Error),
+				)
+			}
 			logger.Info("Served request", attr...)
 		})
 	}
@@ -129,7 +134,6 @@ type spyResponseWriter struct {
 }
 
 func (w *spyResponseWriter) Write(p []byte) (int, error) {
-	fmt.Printf("DEBUG: StatueCode = %d", w.statusCode)
 	if w.statusCode == 0 {
 		w.statusCode = http.StatusOK
 	}
@@ -147,4 +151,12 @@ const logContextKey contextKey = "log_context"
 
 type LogContext struct {
 	Username string
+	Error    error
+}
+
+func httpError(ctx context.Context, w http.ResponseWriter, statusCode int, err error) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Error = err
+	}
+	http.Error(w, err.Error(), statusCode)
 }
