@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -17,6 +16,7 @@ import (
 	"boot.dev/linko/internal/store"
 	"github.com/lmittmann/tint"
 	"github.com/mattn/go-isatty"
+	"github.com/natefinch/lumberjack"
 	pkgerr "github.com/pkg/errors"
 )
 
@@ -108,28 +108,27 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 	}))
 
 	if logFile != "" {
-		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to open log file %w", err)
+		RotatingFile := &lumberjack.Logger{
+			Filename:   logFile,
+			MaxSize:    1,
+			MaxAge:     28,
+			MaxBackups: 10,
+			LocalTime:  false,
+			Compress:   true,
 		}
-		bufferFile := bufio.NewWriterSize(f, 8192)
 
-		close := func() error {
-			err = bufferFile.Flush()
-			if err != nil {
-				return fmt.Errorf("faild to flush log file: %w", err)
-			}
-			err = f.Close()
-			if err != nil {
+		handlers = append(handlers, slog.NewJSONHandler(RotatingFile, &slog.HandlerOptions{
+			Level:       slog.LevelInfo,
+			ReplaceAttr: replaceAttr,
+		}))
+
+		closefunc := func() error {
+			if err := RotatingFile.Close(); err != nil {
 				return fmt.Errorf("faild to close log file: %w", err)
 			}
 			return nil
 		}
-		handlers = append(handlers, slog.NewJSONHandler(bufferFile, &slog.HandlerOptions{
-			Level:       slog.LevelInfo,
-			ReplaceAttr: replaceAttr,
-		}))
-		closers = append(closers, close)
+		closers = append(closers, closefunc)
 	}
 
 	closer := func() error {

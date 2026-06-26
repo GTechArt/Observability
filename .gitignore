@@ -2,4 +2,4 @@ data
 linko
 *~
 vendor/
-*.log
+*.log*
