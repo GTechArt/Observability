@@ -50,9 +50,10 @@ func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
 	}
 	u, err := url.Parse(longURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		//http.Error(w, "invalid URL: must include scheme (http/https) and host", http.StatusBadRequest)
+		if err == nil {
+			err = fmt.Errorf("invalid URL: must include scheme (http/https) and host")
+		}
 		httpError(r.Context(), w, http.StatusBadRequest, err)
-
 		return
 	}
 	if err := checkDestination(longURL); err != nil {

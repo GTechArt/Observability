@@ -157,6 +157,16 @@ type LogContext struct {
 }
 
 func httpError(ctx context.Context, w http.ResponseWriter, statusCode int, err error) {
+	if statusCode == http.StatusUnauthorized {
+		//err = fmt.Errorf("%s", http.StatusText(http.StatusUnauthorized))
+		err = fmt.Errorf("%s", http.StatusText(http.StatusUnauthorized))
+	}
+	if statusCode == http.StatusForbidden {
+		err = fmt.Errorf("%s", http.StatusText(http.StatusForbidden))
+	}
+	if statusCode == http.StatusInternalServerError {
+		err = fmt.Errorf("%s", http.StatusText(http.StatusInternalServerError))
+	}
 	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
 		logCtx.Error = err
 	}
