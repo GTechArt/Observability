@@ -69,7 +69,7 @@ func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Info("Successfully generated short code",
 		slog.String("shortCode", shortCode),
-		slog.String("longURL", longURL),
+		slog.Any("long_url", u),
 	)
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
